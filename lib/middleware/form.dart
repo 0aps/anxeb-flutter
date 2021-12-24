@@ -187,21 +187,25 @@ class FieldsForm {
     }
   }
 
-  Map<String, FileInputValue> files() {
-    var result = Map<String, FileInputValue>();
+  Map<String, dynamic> files() {
+    var result = Map<String, dynamic>();
 
     var payload = data(files: true);
     payload.forEach((key, value) {
-      final FileInputValue fileValue = value;
-      if (fileValue?.title?.isNotEmpty == true) {
+      if(value is List<FileInputValue>){
         result[key] = value;
+      }else if(value is FileInputValue){
+        final FileInputValue fileValue = value;
+        if (fileValue?.title?.isNotEmpty == true) {
+          result[key] = value;
+        }
       }
     });
     return result;
   }
 
   Future<Map<String, dynamic>> multipart() async {
-    Map<String, FileInputValue> files = this.files();
+    Map<String, dynamic> files = this.files();
     final Map<String, dynamic> multiPayload = {};
 
     final entries = files.entries;

@@ -23,9 +23,19 @@ class FileInputValue {
   bool useFullUrl;
 
   bool get isImage => ['jpg', 'png', 'jpeg'].contains(extension);
+
+  String get previewText => title ?? basename(path);
+
+  Map<String, dynamic> toJSON(){
+    return {
+      'title': title,
+      'extension': extension
+    };
+  }
 }
 
-class FileInputField extends FieldWidget<FileInputValue> {
+class FileInputField extends FieldWidget<List<FileInputValue>> {
+  final bool allowMultiples;
   final List<String> allowedExtensions;
   final String launchUrlPrefix;
 
@@ -40,17 +50,18 @@ class FileInputField extends FieldWidget<FileInputValue> {
     EdgeInsets padding,
     bool readonly,
     bool visible,
-    ValueChanged<FileInputValue> onSubmitted,
-    ValueChanged<FileInputValue> onValidSubmit,
+    ValueChanged<List<FileInputValue>> onSubmitted,
+    ValueChanged<List<FileInputValue>> onValidSubmit,
     GestureTapCallback onTab,
     GestureTapCallback onBlur,
     GestureTapCallback onFocus,
-    ValueChanged<FileInputValue> onChanged,
+    ValueChanged<List<FileInputValue>> onChanged,
     FormFieldValidator<String> validator,
-    FileInputValue Function(FileInputValue value) parser,
+    List<FileInputValue> Function(dynamic value) parser,
     bool focusNext,
     double fontSize,
     double labelSize,
+    this.allowMultiples = false,
     this.allowedExtensions,
     this.launchUrlPrefix,
   })  : assert(name != null),
@@ -82,9 +93,9 @@ class FileInputField extends FieldWidget<FileInputValue> {
   _FileInputFieldState createState() => _FileInputFieldState();
 }
 
-class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
-  String _previewText;
+class _FileInputFieldState extends Field<List<FileInputValue>, FileInputField> {
   final GlobalIcons icons = GlobalIcons();
+  List<FileInputValue> _files;
 
   @override
   void init() {}
@@ -122,10 +133,10 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
       ],
     ).show();
 
-    File result;
+    List<File> result = [];
 
     if (option == 'photo') {
-      result = await widget.scope.view.push(CameraHelper(
+      final picture = await widget.scope.view.push(CameraHelper(
         title: widget.label,
         fullImage: true,
         initFaceCamera: false,
@@ -134,11 +145,12 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
         flash: true,
         resolution: ResolutionPreset.high,
       ));
+      result.add(picture);
     } else if (option == 'document') {
       try {
         final picker = await FilePicker.platform.pickFiles(
           type: FileType.custom,
-          allowMultiple: false,
+          allowMultiple: widget.allowMultiples,
           allowedExtensions: widget.allowedExtensions ?? ['jpeg', 'jpg', 'png', 'pdf'],
           onFileLoading: (state) async {
             await widget.scope.busy();
@@ -149,7 +161,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
         await widget.scope.idle();
 
         if (picker != null && picker.files.first != null) {
-          result = File(picker.files.first.path);
+          result = picker.files.map((file) => File(file.path)).toList();
         }
       } catch (err) {
         await widget.scope.idle();
@@ -157,13 +169,13 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
       }
     }
 
-    if (result != null) {
-      super.submit(FileInputValue(
-        path: result.path,
-        title: basename(result.path),
-        extension: (extension(result.path ?? '') ?? '').replaceFirst('.', ''),
+    if (result != null && result.isNotEmpty) {
+      super.submit(result.map((file) => FileInputValue(
+        path: file.path,
+        title: basename(file.path),
+        extension: (extension(file.path ?? '') ?? '').replaceFirst('.', ''),
         url: null,
-      ));
+      )).toList());
     }
   }
 
@@ -188,13 +200,10 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
   @override
   void present() {
     setState(() {
-      if (value?.title != null) {
-        _previewText = value.title;
-      } else if (value?.path != null) {
-        var file = File(value.path);
-        _previewText = basename(file.path);
+      if (value != null) {
+        _files = value;
       } else {
-        _previewText = null;
+        _files = null;
       }
     });
   }
@@ -203,10 +212,10 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
   Widget field() {
     var previewContent;
 
-    if (_previewText != null) {
-      previewContent = GestureDetector(
+    if (value != null && value.isNotEmpty) {
+      previewContent = Column(children: value.map((file) => GestureDetector(
         onTap: () async {
-          _preview();
+          _preview(file);
         },
         child: Container(
           padding: EdgeInsets.only(top: 2),
@@ -214,13 +223,13 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(right: 4, bottom: 2),
-                child: _getMimeIcon(),
+                child: _getMimeIcon(file),
               ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 1),
                   child: Text(
-                    _previewText,
+                    file.previewText,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       height: 1,
@@ -233,7 +242,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
             ],
           ),
         ),
-      );
+      )).toList());
     } else {
       previewContent = Container(
         padding: EdgeInsets.only(top: 2),
@@ -257,7 +266,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
           _pickFile();
         }
       },
-      child: new FormField(
+      child:  FormField(
         builder: (FormFieldState state) {
           return InputDecorator(
             isFocused: focused,
@@ -269,7 +278,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
                 size: widget.iconSize,
                 color: widget.scope.application.settings.colors.primary,
               ),
-              labelText: (value?.path != null || value?.url != null) ? widget.label : null,
+              labelText: (value != null && value.isNotEmpty) ? widget.label : null,
               labelStyle: widget.labelSize != null ? TextStyle(fontSize: widget.labelSize) : null,
               fillColor: focused ? widget.scope.application.settings.colors.focus : widget.scope.application.settings.colors.input,
               errorText: warning,
@@ -300,7 +309,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
     );
   }
 
-  Future _preview() async {
+  Future _preview(FileInputValue value) async {
     if (value != null) {
       var result = await widget.scope.view.push(DocumentView(
         launchUrl: widget.launchUrlPrefix,
@@ -315,7 +324,7 @@ class _FileInputFieldState extends Field<FileInputValue, FileInputField> {
     }
   }
 
-  Icon _getMimeIcon() {
+  Icon _getMimeIcon(FileInputValue value) {
     var ext = value?.extension ?? (value?.path != null ? extension(value.path).replaceFirst('.', '') : null) ?? 'txt';
     var meta = icons.getFileMeta(ext);
 
