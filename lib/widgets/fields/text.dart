@@ -34,10 +34,12 @@ class TextInputField<V> extends FieldWidget<V> {
   final String hint;
   final String prefix;
   final String suffix;
+  final String helper;
   final V Function(String value) converter;
   final String Function(V value) displayText;
   final int maxLines;
   final int maxLength;
+  final int helperMaxLines;
   final bool suffixActions;
   final int errorMaxLines;
   final bool selectOnFocus;
@@ -77,10 +79,12 @@ class TextInputField<V> extends FieldWidget<V> {
     this.hint,
     this.prefix,
     this.suffix,
+    this.helper,
     this.converter,
     this.displayText,
     this.maxLines,
     this.maxLength,
+    this.helperMaxLines,
     this.suffixActions,
     this.errorMaxLines,
     this.selectOnFocus,
@@ -322,6 +326,8 @@ class _TextInputFieldState<V> extends Field<V, TextInputField<V>> {
               : (widget.label == null ? TextStyle(fontSize: 20.25) : null)),
       decoration: InputDecoration(
         filled: true,
+        helperText: widget.helper,
+        helperMaxLines: widget.helperMaxLines,
         counterText: widget.disableCounter == true ? '' : null,
         contentPadding: (widget.icon != null
                 ? (widget.theme?.contentPaddingWithIcon ??
