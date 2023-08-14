@@ -4,6 +4,7 @@ import 'package:anxeb_flutter/middleware/scope.dart';
 
 class CheckBoxField extends FieldWidget<bool> {
   final ListTileControlAffinity controlAffinity;
+  final Function() body;
 
   CheckBoxField({
     @required Scope scope,
@@ -22,6 +23,7 @@ class CheckBoxField extends FieldWidget<bool> {
     Future<bool> Function() fetcher,
     Function(bool value) applier,
     FieldWidgetTheme theme,
+    this.body,
     this.controlAffinity,
   })  : assert(name != null),
         super(
@@ -57,7 +59,7 @@ class _CheckBoxFieldState extends Field<bool, CheckBoxField> {
           dense: false,
           activeColor: widget.scope.application.settings.colors.primary,
           tileColor: widget.scope.application.settings.colors.primary,
-          title: Text(
+          title: widget.body?.call() ?? Text(
             widget.label ?? '',
             style: TextStyle(
               fontWeight: FontWeight.w500,
